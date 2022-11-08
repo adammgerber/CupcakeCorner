@@ -7,83 +7,71 @@
 
 import SwiftUI
 
-
-struct Response: Codable {
-    var results: [Result]
-}
-
-struct Result: Codable {
-    var trackId: Int
-    var trackName: String
-    var collectionName: String
-}
-//@Published does not conform to Codable
-//name property is automatically wrapped in another type that adds functionality
-//In this case that type is a struct : Published
-//Published is a generic type, so you cant just make an instance of it...you need to add something like
-//Published<String>: a publishable object that contains a string
-class User: ObservableObject, Codable {
-    @Published var name = "Paul Hudson"
-    //enum CodingKeys that conforms to CodingKey( a swiftUI protocol)
-    //we list all the properties we want to archive in this enum
-    enum CodingKeys: CodingKey {
-        case name
+class Order: ObservableObject {
+    static let types = ["Vanilla", "Strawberry", "Chocolate", "Rainbow"]
+    
+    @Published var type = 0
+    @Published var quantity = 3
+    
+    @Published var specialRequestEnabled = false {
+        didSet {
+            if specialRequestEnabled == false {
+                extraFrosting = false
+                addSprinkles = false
+            }
+        }
     }
-    //custom initializer that will be given a container and used to read values for all our properties
-    required init(from decoder: Decoder) throws{
-        //we ask our Decoder instance for a container matching all the coding keys we already set in our CodingKey struct
-        //  This means “this data should have a container where the keys match whatever cases we have in our CodingKeys enum
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        //read values from container by referencing cases in enum
-        //provides safety by making it clear we expect a string and nothing else
-        //also provides safety by using a case in CodingKeys enum rather than a string, so no typos
-        name = try container.decode(String.self, forKey: .name)
+    @Published var extraFrosting = false
+    @Published var addSprinkles = false
+    
+    @Published var name = ""
+    @Published var streetAddress = ""
+    @Published var city = ""
+    @Published var zip = ""
+    
+    var hasValidAddress: Bool {
+        if name.isEmpty || streetAddress.isEmpty || city.isEmpty || zip.isEmpty {
+            return false
+        }
+        return true
     }
     
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(name, forKey: .name)
-    }
 }
-
 
 struct ContentView: View {
     
-    @State private var results = [Result]()
+    @StateObject var order = Order()
     
-    func loadData() async {
-        
-        //1. creating the URL we want to read
-        guard let url = URL(string: "https://itunes.apple.com/search?term=taylor+swift&entity=song" ) else {
-            print("Invalid URL")
-            return
-        }
-        
-        //2. fetch data from that URL
-        do {
-            //data(from:) takes a url and returns the DATA object of url (belongs to URLSession class)
-            // we use the underscore next to data because we only care about data, not the metadata returned
-            let (data, _) = try await URLSession.shared.data(from: url)
-            //3. Convert the Data object into a Response using JSONDecoder and assign array to results
-            if let decodedResponse = try? JSONDecoder().decode(Response.self, from : data) {
-                results = decodedResponse.results
-            }
-        } catch {
-            print("Invalid data")
-        }
-        
-    }
-
+    
     var body: some View {
-        List(results, id: \.trackId) { item in
-            VStack(alignment: .leading){
-                Text(item.trackName)
-                    .font(.headline)
-                Text(item.collectionName)
+        NavigationView{
+            Form{
+                Section{
+                    Picker("Select your cake type", selection: $order.type) {
+                                    ForEach(Order.types.indices) {
+                                        Text(Order.types[$0])
+                                    }
+                                }
+                    Stepper("Number of cakes: \(order.quantity)", value: $order.quantity, in: 3...20)
+                }
+                
+                Section{
+                    Toggle("Any special requests?", isOn: $order.specialRequestEnabled.animation())
+                    if order.specialRequestEnabled {
+                        Toggle("Add extra frosting", isOn: $order.extraFrosting)
+                        Toggle("Add extra sprinkles", isOn: $order.addSprinkles)
+                    }
+                }
+                
+                Section {
+                    NavigationLink {
+                        AddressView(order: order)
+                    } label: {
+                        Text("Delivery details")
+                    }
+                }
             }
-        }
-        .task {
-            await loadData()
+            .navigationTitle("Cupcake Corner")
         }
     }
 }
