@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-class Order: ObservableObject {
+class Order: ObservableObject, Codable {
     
     static let types = ["Vanilla", "Strawberry", "Chocolate", "Rainbow"]
     
